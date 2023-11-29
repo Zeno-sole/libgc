@@ -1,14 +1,67 @@
-libgc (1:8.0.4.1-1+dde) UNRELEASED; urgency=medium
+libgc (1:8.2.4-1) unstable; urgency=medium
 
-  * update
+  * New upstream version 8.2.4
+  * Add GC_<get|set>_sp_corrector symbols
 
- -- Christoph Egger <christoph@debian.org>  Thu, 26 May 2022 16:48:37 +0800
+ -- Ian Wienand <ianw@debian.org>  Wed, 31 May 2023 22:05:34 +1000
 
-libgc (1:8.0.4.1-1+dde) unstable; urgency=medium
+libgc (1:8.2.2-3) unstable; urgency=medium
 
-  * add sw64 porting
+  * Fix pthread symbol exports for hurd/kfreebsd
+  * Demangle C++ names in symbols file
 
- -- Zhang FeiLong <zhangfeilong@uniontech.com>  Thu, 07 Apr 2022 17:09:43 +0800
+ -- Ian Wienand <ianw@debian.org>  Tue, 06 Sep 2022 18:30:14 +1000
+
+libgc (1:8.2.2-2) unstable; urgency=medium
+
+  * Remove libatomic_ops as a build-dep;
+    remove matching from build to simplify future
+    porting.
+  * libgccpp.so.1 : add back differing 32-bit C++ symbols
+    (Closes: #1018924)
+
+
+ -- Ian Wienand <ianw@debian.org>  Mon, 05 Sep 2022 21:17:49 +1000
+
+libgc (1:8.2.2-1) unstable; urgency=medium
+
+  * Update watch/control upstream links to https
+  * libgc-dev: remove duplicate doc copy
+  * Remove libatomic_ops handling
+  * Add .gitignore
+  * Build static and dynamic separately
+  * Use common config options for static/dynamic
+  * Update debian/watch to github source
+  * Add ianw@debian.org as uploader
+  * New upstream version 8.2.2
+  * Update watch/control upstream links to https
+  * libgc-dev: remove duplicate doc copy
+  * Remove libatomic_ops handling
+  * Add .gitignore
+  * Build static and dynamic separately
+  * Use common config options for static/dynamic
+  * Update debian/watch to github source
+  * Add ianw@debian.org as uploader
+  * New upstream version 8.2.2
+  * Update symbols file for 8.2.2
+
+ -- Ian Wienand <ianw@debian.org>  Wed, 31 Aug 2022 15:11:15 +1000
+
+libgc (1:8.0.6-1.1) unstable; urgency=medium
+
+  * Non-maintainer upload. ((Closes: #999740)
+  * New upstream version 8.0.6
+  * Update to point to salsa
+  * Update symbols for 8.0.6
+  * Drop enable-threads-on-hurd.diff and issue329.diff
+
+ -- Ian Wienand <ianw@debian.org>  Fri, 26 Nov 2021 09:12:33 +1100
+
+libgc (1:8.0.4-3+alpha.1) unreleased; urgency=medium
+
+  * Update symbols on Alpha (fixing FTBFS).
+
+ -- Michael Cree <mcree@orcon.net.nz>  Fri, 26 Mar 2021 08:19:12 +1300
 
 libgc (1:8.0.4-3) unstable; urgency=medium
 

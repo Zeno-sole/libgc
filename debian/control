@@ -1,16 +1,14 @@
 Source: libgc
 Maintainer: Christoph Egger <christoph@debian.org>
-Uploaders: Debian GCC Maintainers <debian-gcc@lists.debian.org>
+Uploaders: Debian GCC Maintainers <debian-gcc@lists.debian.org>, Ian Wienand <ianw@debian.org>
 Section: libs
 Priority: optional
 Build-Depends: debhelper (>= 11),
- libatomic-ops-dev (>= 7.6~),
  pkg-config,
  pkg-kde-tools
 Standards-Version: 4.5.1
-Homepage: http://www.hboehm.info/gc/
-#Vcs-Git: git://anonscm.debian.org/collab-maint/libgc.git
-#Vcs-Browser: https://anonscm.debian.org/cgit/collab-maint/libgc.git
+Homepage: https://www.hboehm.info/gc/
+Vcs-Git: https://salsa.debian.org/debian/libgc
 
 Package: libgc1
 Architecture: any
@@ -35,7 +33,7 @@ Description: conservative garbage collector for C and C++
 Package: libgc-dev
 Architecture: any
 Section: libdevel
-Depends: ${misc:Depends}, libgc1 (= ${binary:Version}), libc-dev, ${atomic:Depends}
+Depends: ${misc:Depends}, libgc1 (= ${binary:Version}), libc-dev
 Multi-Arch: same
 Description: conservative garbage collector for C (development)
  Boehm-Demers-Weiser's GC is a garbage collecting storage allocator that is

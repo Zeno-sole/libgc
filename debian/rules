@@ -7,19 +7,11 @@ DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
 LDFLAGS += -pthread
 
-ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
-ATOMIC_BUILTIN_ARCHS = alpha amd64 arm64 armel armhf hppa hurd-i386 i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x x32
-endif
-
 %:
 	dh $@ --with pkgkde_symbolshelper,autoreconf
 
-override_dh_auto_configure:
-	[ ! -d libatomic_ops-1.2 ] || mv libatomic_ops-1.2 libatomic_ops-1.2.bak
-	./configure \
-		$(CONFIG_OPTS) \
+COMMON_CONFIG = $(CONFIG_OPTS) \
 		--enable-cplusplus \
-		--enable-static \
 		--enable-docs \
 		--disable-dependency-tracking \
 		--with-tags=CXX \
@@ -31,12 +23,36 @@ override_dh_auto_configure:
 		--host=$(DEB_HOST_GNU_TYPE) \
 		--build=$(DEB_BUILD_GNU_TYPE) \
 		--libdir=\$${prefix}/lib/$(DEB_HOST_MULTIARCH) \
-		$(if $(filter $(DEB_HOST_ARCH),$(ATOMIC_BUILTIN_ARCHS)),--with-libatomic-ops=none)
+		--with-libatomic-ops=none
+
+# --enable-static also disables building with symbol-visibility
+# attributes, so build the static and dynamic libraries separately to
+# ensure the .so symbols are correctly exported.
+override_dh_auto_configure:
+	[ ! -d libatomic_ops-1.2 ] || mv libatomic_ops-1.2 libatomic_ops-1.2.bak
+	mkdir build-dynamic
+	cd build-dynamic; ../configure \
+		$(COMMON_CONFIG) \
+		--enable-shared \
+		--disable-static
+	mkdir build-static
+	cd build-static; ../configure \
+		$(COMMON_CONFIG) \
+		--enable-static \
+		--disable-shared
 
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 override_dh_auto_test:
-	$(MAKE) check
+	cd build-dynamic; $(MAKE) check
 endif
+
+override_dh_auto_build:
+	dh_auto_build -B build-dynamic
+	dh_auto_build -B build-static
+
+override_dh_auto_install:
+	dh_auto_install -B build-dynamic
+	dh_auto_install -B build-static
 
 override_dh_install:
 	install -D doc/gc.man debian/tmp/usr/share/man/man3/gc_malloc.3
@@ -44,12 +60,8 @@ override_dh_install:
 	rm debian/libgc-dev/usr/share/doc/libgc1/README.environment
 
 override_dh_auto_clean:
-	[ -d libatomic_ops-1.2 ] || [ ! -d libatomic_ops-1.2.bak ] || mv libatomic_ops-1.2.bak libatomic_ops-1.2
 	dh_auto_clean
-	rm -rf autom4te.cache libatomic_ops atomic_ops_sysdeps.S atomic_ops.c
+	rm -rf autom4te.cache build-static build-dynamic
 
 override_dh_installchangelogs:
 	dh_installchangelogs ChangeLog
-
-override_dh_gencontrol:
-	dh_gencontrol -- -Vatomic:Depends=$$(grep -q '[-]latomic_ops' debian/libgc-dev/usr/lib/*/pkgconfig/*.pc && echo libatomic-ops-dev)

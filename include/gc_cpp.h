@@ -135,12 +135,16 @@ uses explicit invocation.
 5. GC name conflicts:
 
 Many other systems seem to use the identifier "GC" as an abbreviation
-for "Graphics Context".  Since version 5.0, GC placement has been replaced
+for "Graphics Context".  Thus, GC placement has been replaced
 by UseGC.  GC is an alias for UseGC, unless GC_NAME_CONFLICT is defined.
 
 ****************************************************************************/
 
 #include "gc.h"
+
+#ifdef GC_INCLUDE_NEW
+# include <new> // for std, bad_alloc
+#endif
 
 #ifdef GC_NAMESPACE
 # define GC_NS_QUALIFY(T) boehmgc::T
@@ -173,27 +177,28 @@ by UseGC.  GC is an alias for UseGC, unless GC_NAME_CONFLICT is defined.
 # define GC_PLACEMENT_DELETE
 #endif
 
-#ifndef GC_NOEXCEPT
-# if defined(__DMC__) || (defined(__BORLANDC__) \
-        && (defined(_RWSTD_NO_EXCEPTIONS) || defined(_RWSTD_NO_EX_SPEC))) \
-     || (defined(_MSC_VER) && defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS) \
-     || (defined(__WATCOMC__) && !defined(_CPPUNWIND))
-#   define GC_NOEXCEPT /* empty */
-#   ifndef GC_NEW_ABORTS_ON_OOM
-#     define GC_NEW_ABORTS_ON_OOM
-#   endif
-# elif __cplusplus >= 201103L
-#   define GC_NOEXCEPT noexcept
-# else
-#   define GC_NOEXCEPT throw()
-# endif
-#endif // !GC_NOEXCEPT
+#if !defined(GC_NEW_DELETE_THROW_NOT_NEEDED) \
+    && !defined(GC_NEW_DELETE_NEED_THROW) && GC_GNUC_PREREQ(4, 2) \
+    && (__cplusplus < 201103L || defined(__clang__))
+# define GC_NEW_DELETE_NEED_THROW
+#endif
+
+#ifndef GC_NEW_DELETE_NEED_THROW
+# define GC_DECL_NEW_THROW /* empty */
+#elif __cplusplus >= 201703L || _MSVC_LANG >= 201703L
+  // The "dynamic exception" syntax had been deprecated in C++11
+  // and was removed in C++17.
+# define GC_DECL_NEW_THROW noexcept(false)
+#elif defined(GC_INCLUDE_NEW)
+# define GC_DECL_NEW_THROW throw(std::bad_alloc)
+#else
+# define GC_DECL_NEW_THROW /* empty (as bad_alloc might be undeclared) */
+#endif
 
 #if defined(GC_NEW_ABORTS_ON_OOM) || defined(_LIBCPP_NO_EXCEPTIONS)
 # define GC_OP_NEW_OOM_CHECK(obj) \
                 do { if (!(obj)) GC_abort_on_oom(); } while (0)
 #elif defined(GC_INCLUDE_NEW)
-# include <new> // for bad_alloc
 # define GC_OP_NEW_OOM_CHECK(obj) if (obj) {} else throw std::bad_alloc()
 #else
   // "new" header is not included, so bad_alloc cannot be thrown directly.
@@ -306,19 +311,18 @@ inline void* operator new(size_t size, GC_NS_QUALIFY(GCPlacement) gcp,
                               void*) GC_NOEXCEPT;
 #endif
 
+#ifndef GC_NO_INLINE_STD_NEW
+
 #if defined(_MSC_VER) || defined(__DMC__) \
-    || ((defined(__CYGWIN32__) || defined(__CYGWIN__) \
-        || defined(__MINGW32__)) && !defined(GC_BUILD) && !defined(GC_NOT_DLL))
-  // The following ensures that the system default operator new[] does not
-  // get undefined, which is what seems to happen on VC++ 6 for some reason
-  // if we define a multi-argument operator new[].
-  // There seems to be no way to redirect new in this environment without
-  // including this everywhere.
+    || ((defined(__BORLANDC__) || defined(__CYGWIN__) \
+         || defined(__CYGWIN32__) || defined(__MINGW32__) \
+         || defined(__WATCOMC__)) \
+        && !defined(GC_BUILD) && !defined(GC_NOT_DLL))
   // Inlining done to avoid mix up of new and delete operators by VC++ 9 (due
   // to arbitrary ordering during linking).
 
 # ifdef GC_OPERATOR_NEW_ARRAY
-    inline void* operator new[](size_t size)
+    inline void* operator new[](size_t size) GC_DECL_NEW_THROW
     {
       void* obj = GC_MALLOC_UNCOLLECTABLE(size);
       GC_OP_NEW_OOM_CHECK(obj);
@@ -331,7 +335,7 @@ inline void* operator new(size_t size, GC_NS_QUALIFY(GCPlacement) gcp,
     }
 # endif
 
-  inline void* operator new(size_t size)
+  inline void* operator new(size_t size) GC_DECL_NEW_THROW
   {
     void* obj = GC_MALLOC_UNCOLLECTABLE(size);
     GC_OP_NEW_OOM_CHECK(obj);
@@ -343,7 +347,7 @@ inline void* operator new(size_t size, GC_NS_QUALIFY(GCPlacement) gcp,
     GC_FREE(obj);
   }
 
-# if __cplusplus > 201103L // C++14
+# if __cplusplus >= 201402L || _MSVC_LANG >= 201402L // C++14
     inline void operator delete(void* obj, size_t size) GC_NOEXCEPT {
       (void)size; // size is ignored
       GC_FREE(obj);
@@ -389,6 +393,27 @@ inline void* operator new(size_t size, GC_NS_QUALIFY(GCPlacement) gcp,
 # endif
 
 #endif // _MSC_VER
+
+#elif defined(_MSC_VER)
+  // The following ensures that the system default operator new[] does not
+  // get undefined, which is what seems to happen on VC++ 6 for some reason
+  // if we define a multi-argument operator new[].
+  // There seems to be no way to redirect new in this environment without
+  // including this everywhere.
+# ifdef GC_OPERATOR_NEW_ARRAY
+    void *operator new[](size_t size) GC_DECL_NEW_THROW;
+    void operator delete[](void* obj) GC_NOEXCEPT;
+
+    void* operator new[](size_t size, int /* nBlockUse */,
+                         const char * szFileName, int nLine);
+# endif // GC_OPERATOR_NEW_ARRAY
+
+  void* operator new(size_t size) GC_DECL_NEW_THROW;
+  void operator delete(void* obj) GC_NOEXCEPT;
+
+  void* operator new(size_t size, int /* nBlockUse */,
+                     const char * szFileName, int nLine);
+#endif // GC_NO_INLINE_STD_NEW && _MSC_VER
 
 #ifdef GC_OPERATOR_NEW_ARRAY
   // The operator new for arrays, identical to the above.
@@ -487,9 +512,11 @@ inline void gc::operator delete(void* obj) GC_NOEXCEPT
 
 inline gc_cleanup::~gc_cleanup()
 {
-  void* base = GC_base(this);
-  if (0 == base) return; // Non-heap object.
-  GC_register_finalizer_ignore_self(base, 0, 0, 0, 0);
+# ifndef GC_NO_FINALIZATION
+    void* base = GC_base(this);
+    if (0 == base) return; // Non-heap object.
+    GC_register_finalizer_ignore_self(base, 0, 0, 0, 0);
+# endif
 }
 
 inline void GC_CALLBACK gc_cleanup::cleanup(void* obj, void* displ)
@@ -499,19 +526,23 @@ inline void GC_CALLBACK gc_cleanup::cleanup(void* obj, void* displ)
 
 inline gc_cleanup::gc_cleanup()
 {
-  GC_finalization_proc oldProc;
-  void* oldData;
-  void* this_ptr = (void*)this;
-  void* base = GC_base(this_ptr);
-  if (base != 0) {
-    // Don't call the debug version, since this is a real base address.
-    GC_register_finalizer_ignore_self(base, (GC_finalization_proc) cleanup,
-                                      (void*)((char*)this_ptr - (char*)base),
-                                      &oldProc, &oldData);
-    if (oldProc != 0) {
-      GC_register_finalizer_ignore_self(base, oldProc, oldData, 0, 0);
+# ifndef GC_NO_FINALIZATION
+    GC_finalization_proc oldProc = 0;
+    void* oldData = NULL; // to avoid "might be uninitialized" compiler warning
+    void* this_ptr = (void*)this;
+    void* base = GC_base(this_ptr);
+    if (base != 0) {
+      // Don't call the debug version, since this is a real base address.
+      GC_register_finalizer_ignore_self(base, (GC_finalization_proc) cleanup,
+                                        (void*)((char*)this_ptr-(char*)base),
+                                        &oldProc, &oldData);
+      if (oldProc != 0) {
+        GC_register_finalizer_ignore_self(base, oldProc, oldData, 0, 0);
+      }
     }
-  }
+# elif defined(CPPCHECK)
+    (void)cleanup;
+# endif
 }
 
 #ifdef GC_NAMESPACE
@@ -526,9 +557,14 @@ inline void* operator new(size_t size, GC_NS_QUALIFY(GCPlacement) gcp,
   switch (gcp) {
   case GC_NS_QUALIFY(UseGC):
     obj = GC_MALLOC(size);
-    if (cleanup != 0 && obj != 0) {
-      GC_REGISTER_FINALIZER_IGNORE_SELF(obj, cleanup, clientData, 0, 0);
-    }
+#   ifndef GC_NO_FINALIZATION
+      if (cleanup != 0 && obj != 0) {
+        GC_REGISTER_FINALIZER_IGNORE_SELF(obj, cleanup, clientData, 0, 0);
+      }
+#   else
+      (void)cleanup;
+      (void)clientData;
+#   endif
     break;
   case GC_NS_QUALIFY(PointerFreeGC):
     obj = GC_MALLOC_ATOMIC(size);
