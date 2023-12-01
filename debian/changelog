@@ -1,3 +1,9 @@
+libgc (1:8.2.4-1deepin1) unstable; urgency=medium
+
+  * add sw64 porting (from previous version)
+
+ -- Chang Yang <yangchang@deepin.org>  Fri, 01 Dec 2023 17:45:47 +0800
+
 libgc (1:8.2.4-1) unstable; urgency=medium
 
   * New upstream version 8.2.4
